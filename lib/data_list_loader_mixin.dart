@@ -100,7 +100,10 @@ mixin DataListLoaderMixin<T> {
         await _addItem(l[i], skipDelay: i == 0);
       }
     } else {
-      dataSubject.add(DataWrapper([], null));
+      DataWrapper? _data = dataSubject.valueOrNull;
+      if (_data == null || _data.error != null) {
+        dataSubject.add(DataWrapper([], null));
+      }
     }
 
     /**
