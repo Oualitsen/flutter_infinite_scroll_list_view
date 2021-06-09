@@ -121,6 +121,13 @@ mixin DataListLoaderMixin<T> {
     }
   }
 
+  @protected
+  void removeAt(int index) {
+    var list = dataList;
+    list.removeAt(index);
+    dataSubject.add(DataWrapper(list, null));
+  }
+
   Future<void> _addItem(T item, {required bool skipDelay}) async {
     int Function(T a, T b)? _comparator = comparator();
     var _list = dataList;
@@ -179,26 +186,22 @@ mixin DataListLoaderMixin<T> {
     var _list = dataList;
     int index = _list.indexOf(item);
     if (index != -1) {
-      _list.removeAt(index);
       await callOnRemove(index, skipDelay: true);
       dataSubject.add(DataWrapper(_list, null));
-    }
-  }
 
-  Future<void> removeItemAt(int index) async {
-    await callOnRemove(index, skipDelay: true);
+      if (dataLength == 0 && listLength == 1) {
+        await callOnRemove(0, skipDelay: true);
+      }
+    }
   }
 
   Future<void> removeWere(bool Function(T) filter) async {
     var _list = dataList;
     List<T> list = _list.where(filter).toList();
-    list.forEach((item) async => await removeItem(item));
-  }
 
-  void removeAt(int index) {
-    var list = dataList;
-    list.removeAt(index);
-    dataSubject.add(DataWrapper(list, null));
+    for (var value in list) {
+      await removeItem(value);
+    }
   }
 
   Future<void> update(T item) async {
