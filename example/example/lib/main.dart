@@ -37,17 +37,7 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: InfiniteScrollListView<String>(
-        key: key,
-        pageLoader: getPage,
-        elementBuilder: (val, anim) => ListTile(
-          title: Text(val),
-          trailing: IconButton(
-            icon: Icon(Icons.clear),
-            onPressed: () => remove(val),
-          ),
-        ),
-      ),
+      body: Container(),
       // This trailing comma makes auto-formatting nicer for build methods.
     );
   }

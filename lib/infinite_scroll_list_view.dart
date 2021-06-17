@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:infinite_scroll_list_view/data_list_loader_mixin.dart';
 
 class InfiniteScrollListView<T> extends StatefulWidget {
-  final Widget Function(T element, Animation<double> animation) elementBuilder;
+  final Widget Function(BuildContext context, T element, int index, Animation<double> animation)
+      elementBuilder;
   final Future<List<T>?> Function(int index) pageLoader;
 
   final int Function(T a, T b)? comparator;
@@ -99,7 +100,12 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
                 if (index == dataLength) {
                   return lastElement;
                 }
-                return widget.elementBuilder(getItem(index), animation);
+                return widget.elementBuilder(
+                  context,
+                  getItem(index),
+                  index,
+                  animation,
+                );
               });
 
           var children = <Widget>[];
