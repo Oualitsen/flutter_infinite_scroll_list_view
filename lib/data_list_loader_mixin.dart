@@ -65,9 +65,7 @@ mixin DataListLoaderMixin<T> {
       if (!_endOfResult) {
         _pageIndex++;
       }
-      if (response != null) {
-        await _addItems(response, reload);
-      }
+      await _addItems(response ?? [], reload);
     } catch (error) {
       /**
        * Clear first

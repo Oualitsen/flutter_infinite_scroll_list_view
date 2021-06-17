@@ -56,10 +56,10 @@ class _MyHomePageState extends State<MyHomePage> {
     key.currentState!.removeWere((value) => value == id);
   }
 
-  Future<List<String>> getPage(int index) async {
+  Future<List<String>?> getPage(int index) async {
     if (index == 0) {
-      return ["a", "b", "c", "c", "d"];
+      return null;
     }
-    return [];
+    return null;
   }
 }
