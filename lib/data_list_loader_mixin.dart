@@ -11,7 +11,8 @@ class DataWrapper<T> {
 }
 
 mixin DataListLoaderMixin<T> {
-  final BehaviorSubject<bool> endOfResultStream = BehaviorSubject.seeded(false);
+  final BehaviorSubject<bool> _endOfResultStream =
+      BehaviorSubject.seeded(false);
   final BehaviorSubject<bool> loadingStream = BehaviorSubject.seeded(false);
   final BehaviorSubject<Object?> errorStream = BehaviorSubject();
   final BehaviorSubject<DataWrapper<T>?> dataSubject = BehaviorSubject();
@@ -35,7 +36,7 @@ mixin DataListLoaderMixin<T> {
 
   void disposeMixin() {
     _sub.cancel();
-    endOfResultStream.close();
+    _endOfResultStream.close();
     loadingStream.close();
     dataSubject.close();
     queue.clear();
@@ -54,16 +55,18 @@ mixin DataListLoaderMixin<T> {
       }
       return;
     } else {
-      loadingStream.add(true);
+      _addToLoadingStream(true);
     }
 
     if (reload) {
       _pageIndex = 0;
     }
     try {
+      _addToEndOfResultStream(false);
       List<T>? response = await getLoader().call(_pageIndex);
       bool _endOfResult = response?.isEmpty ?? true;
-      endOfResultStream.add(_endOfResult);
+
+      _addToEndOfResultStream(_endOfResult);
       if (!_endOfResult) {
         _pageIndex++;
       }
@@ -76,13 +79,11 @@ mixin DataListLoaderMixin<T> {
       /**
        * Prevent the list from loading more pages!
        */
-      endOfResultStream.add(true);
+      _addToEndOfResultStream(true);
       dataSubject.add(DataWrapper(dataList, error));
       return Future.error(error);
     } finally {
-      if (!loadingStream.isClosed) {
-        loadingStream.add(false);
-      }
+      _addToLoadingStream(false);
     }
   }
 
@@ -103,9 +104,11 @@ mixin DataListLoaderMixin<T> {
         await _addItem(l[i], skipDelay: i == 0);
       }
     } else {
-      DataWrapper? _data = dataSubject.valueOrNull;
-      if (_data == null || _data.error != null) {
+      DataWrapper<T>? _data = dataSubject.valueOrNull;
+      if (_data == null) {
         dataSubject.add(DataWrapper([], null));
+      } else if (_data.error != null) {
+        dataSubject.add(DataWrapper(_data.list ?? [], null));
       }
     }
 
@@ -285,8 +288,8 @@ mixin DataListLoaderMixin<T> {
   Duration? get betweenItemRenderDelay => Duration(milliseconds: 50);
 
   Widget get lastElement => StreamBuilder<bool>(
-        stream: endOfResultStream,
-        initialData: endOfResultStream.valueOrNull,
+        stream: _endOfResultStream,
+        initialData: _endOfResultStream.valueOrNull,
         builder: (context, AsyncSnapshot<bool> snapshot) {
           bool? endOfResult = snapshot.data;
 
@@ -337,13 +340,23 @@ mixin DataListLoaderMixin<T> {
       children: [
         IconButton(
           icon: Icon(Icons.refresh, color: Colors.red),
-          onPressed: () {
-            endOfResultStream.add(false);
-            load();
-          },
+          onPressed: load,
         )
       ],
     );
+  }
+
+  void _addToEndOfResultStream(bool value) {
+    if (!_endOfResultStream.isClosed &&
+        _endOfResultStream.valueOrNull != value) {
+      _endOfResultStream.add(value);
+    }
+  }
+
+  void _addToLoadingStream(bool value) {
+    if (!loadingStream.isClosed && loadingStream.valueOrNull != value) {
+      loadingStream.add(value);
+    }
   }
 
   bool get isListReady;

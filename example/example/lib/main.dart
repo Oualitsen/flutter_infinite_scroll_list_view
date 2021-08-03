@@ -77,8 +77,12 @@ class _MyHomePageState extends State<MyHomePage> {
     if (index == 0) {
       return ["azul", "fellawn"];
     }
-    print("index = $index");
-    await Future.delayed(Duration(seconds: 2));
-    throw "Error";
+    if (index == 1) {
+      await Future.delayed(Duration(seconds: 2));
+      return ["azghyoul"];
+      print("index = $index");
+      throw "Error";
+    }
+    return [];
   }
 }
