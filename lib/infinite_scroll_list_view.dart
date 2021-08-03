@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:infinite_scroll_list_view/data_list_loader_mixin.dart';
 
 class InfiniteScrollListView<T> extends StatefulWidget {
-  final Widget Function(BuildContext context, T element, int index, Animation<double> animation)
-      elementBuilder;
+  final Widget Function(BuildContext context, T element, int index,
+      Animation<double> animation) elementBuilder;
   final Future<List<T>?> Function(int index) pageLoader;
 
   final int Function(T a, T b)? comparator;
@@ -52,7 +52,8 @@ class InfiniteScrollListView<T> extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  InfiniteScrollListViewState<T> createState() => InfiniteScrollListViewState<T>();
+  InfiniteScrollListViewState<T> createState() =>
+      InfiniteScrollListViewState<T>();
 }
 
 class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
@@ -96,7 +97,8 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
               primary: widget.primary,
               reverse: widget.reverse,
               shrinkWrap: widget.shrinkWrap,
-              itemBuilder: (BuildContext context, int index, Animation<double> animation) {
+              itemBuilder: (BuildContext context, int index,
+                  Animation<double> animation) {
                 if (index == dataLength) {
                   return lastElement;
                 }
@@ -143,7 +145,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
           }
           children.add(list);
           return Stack(
-            children: children,
+            children: children.reversed.toList(),
           );
         });
   }
@@ -209,7 +211,8 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
         ),
       );
 
-  Widget get loadingWidget => widget.loadingWidget ?? Center(child: CircularProgressIndicator());
+  Widget get loadingWidget =>
+      widget.loadingWidget ?? Center(child: CircularProgressIndicator());
 
   @override
   Widget getEndOfResultWidget() {

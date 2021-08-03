@@ -37,7 +37,24 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: Container(),
+      body: InfiniteScrollListView<String>(
+        refreshable: true,
+        noDataWidget: ElevatedButton(
+          child: Text("TAP"),
+          onPressed: () {
+            print("hello ${DateTime.now().millisecond}");
+          },
+        ),
+        pageLoader: getPage,
+        elementBuilder: (ctx, text, index, anim) {
+          return ListTile(
+            title: Text(text),
+            onTap: () {},
+          );
+        },
+      ),
+
+      floatingActionButtonLocation: FloatingActionButtonLocation.miniCenterTop,
       // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
@@ -47,8 +64,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<List<String>?> getPage(int index) async {
-    if (index == 0) {
-      return null;
+    if (index == 0 && false) {
+      return ["azul", "fellawn"];
     }
     return null;
   }
