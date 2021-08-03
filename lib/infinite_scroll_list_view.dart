@@ -24,6 +24,8 @@ class InfiniteScrollListView<T> extends StatefulWidget {
   final Widget? onRemoveAnimation;
   final bool animateRemovingItemsOnReload;
   final Widget Function(BuildContext context, dynamic error)? errorBuilder;
+  final Widget Function(BuildContext context, dynamic error)?
+      elementErrorBuilder;
   final bool refreshable;
   final Clip clipBehavior;
 
@@ -44,6 +46,7 @@ class InfiniteScrollListView<T> extends StatefulWidget {
     this.endOfResultWidget,
     this.itemLoadingWidget,
     this.errorBuilder,
+    this.elementErrorBuilder,
     this.betweenItemRenderDelay,
     this.onRemoveAnimation,
     this.animateRemovingItemsOnReload: false,
@@ -116,7 +119,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
           if (data == null) {
             children.add(loadingWidget);
           } else {
-            if (data.error != null) {
+            if (data.error != null && dataLength == 0) {
               children.add(getError(context, data.error));
             } else if (data.list?.isEmpty ?? true) {
               children.add(
@@ -247,6 +250,14 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
             ]),
       );
     }
+  }
+
+  @override
+  Widget getElementError(BuildContext context, error) {
+    if (widget.elementErrorBuilder != null) {
+      return widget.elementErrorBuilder!(context, error);
+    }
+    return super.getElementError(context, error);
   }
 
   @override

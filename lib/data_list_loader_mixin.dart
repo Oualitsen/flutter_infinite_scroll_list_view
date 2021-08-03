@@ -18,13 +18,16 @@ mixin DataListLoaderMixin<T> {
 
   int _pageIndex = 0;
 
-  Future<void> reload({int callId: 0}) => load(reload: true, callId: callId);
+  Future<void> reload() => load(reload: true);
 
   final List<Function()> queue = [];
   late StreamSubscription _sub;
 
   void initMixin() {
-    _sub = loadingStream.where((event) => !event).where((e) => queue.isNotEmpty).listen((event) {
+    _sub = loadingStream
+        .where((event) => !event)
+        .where((e) => queue.isNotEmpty)
+        .listen((event) {
       var fn = queue.removeAt(0);
       fn.call();
     });
@@ -41,14 +44,13 @@ mixin DataListLoaderMixin<T> {
 
   Future<void> load({
     bool reload = false,
-    int callId: 0,
     bool ignoreIfLoading: false,
   }) async {
     var _loading = loadingStream.value;
 
     if (_loading) {
       if (!ignoreIfLoading) {
-        queue.add(() => load(reload: reload, callId: callId));
+        queue.add(() => load(reload: reload));
       }
       return;
     } else {
@@ -70,9 +72,12 @@ mixin DataListLoaderMixin<T> {
       /**
        * Clear first
        */
-      await _clear(forceSkipDelay: true);
-
-      dataSubject.add(DataWrapper(null, error));
+      // await _clear(forceSkipDelay: true);
+      /**
+       * Prevent the list from loading more pages!
+       */
+      endOfResultStream.add(true);
+      dataSubject.add(DataWrapper(dataList, error));
       return Future.error(error);
     } finally {
       if (!loadingStream.isClosed) {
@@ -104,9 +109,10 @@ mixin DataListLoaderMixin<T> {
       }
     }
 
-    /**
-     * add a last element here!
-     */
+    _addLastItem();
+  }
+
+  void _addLastItem() {
     if (dataLength == listLength && dataLength > 0) {
       onAdd(dataLength, null);
     }
@@ -115,7 +121,8 @@ mixin DataListLoaderMixin<T> {
   Future<void> _clear({bool forceSkipDelay: false}) async {
     var length = listLength;
     for (int i = length - 1; i >= 0; i--) {
-      await callOnRemove(i, skipDelay: forceSkipDelay || !animateRemovingItemsOnReload);
+      await callOnRemove(i,
+          skipDelay: forceSkipDelay || !animateRemovingItemsOnReload);
     }
   }
 
@@ -208,6 +215,7 @@ mixin DataListLoaderMixin<T> {
 
   Future<void> add(T item) async {
     await _addItem(item, skipDelay: true);
+    _addLastItem();
   }
 
   T getItem(int index) => dataList[index];
@@ -237,7 +245,8 @@ mixin DataListLoaderMixin<T> {
     }
   }
 
-  Future<void> callOnUpdate(int index, T item, {required bool skipDelay}) async {
+  Future<void> callOnUpdate(int index, T item,
+      {required bool skipDelay}) async {
     /**
      * Wait till the data is initialized first!.
      */
@@ -276,11 +285,23 @@ mixin DataListLoaderMixin<T> {
   Duration? get betweenItemRenderDelay => Duration(milliseconds: 50);
 
   Widget get lastElement => StreamBuilder<bool>(
+        stream: endOfResultStream,
+        initialData: endOfResultStream.valueOrNull,
         builder: (context, AsyncSnapshot<bool> snapshot) {
           bool? endOfResult = snapshot.data;
 
           if (endOfResult != null) {
             if (endOfResult) {
+              /**
+               * check if data.contains error!
+               */
+
+              var data = dataSubject.valueOrNull;
+
+              if (data?.error != null) {
+                return getElementError(context, data!.error);
+              }
+
               return getEndOfResultWidget();
             } else {
               load(ignoreIfLoading: true);
@@ -289,8 +310,6 @@ mixin DataListLoaderMixin<T> {
           }
           return SizedBox.shrink();
         },
-        stream: endOfResultStream,
-        initialData: endOfResultStream.valueOrNull,
       );
 
   Widget getItemLoadingWidget() {
@@ -307,6 +326,21 @@ mixin DataListLoaderMixin<T> {
         Icon(
           Icons.fiber_manual_record,
           color: Colors.grey,
+        )
+      ],
+    );
+  }
+
+  Widget getElementError(BuildContext context, dynamic error) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: Icon(Icons.refresh, color: Colors.red),
+          onPressed: () {
+            endOfResultStream.add(false);
+            load();
+          },
         )
       ],
     );

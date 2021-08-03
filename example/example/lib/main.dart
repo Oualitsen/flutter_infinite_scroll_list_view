@@ -38,6 +38,7 @@ class _MyHomePageState extends State<MyHomePage> {
         title: Text(widget.title),
       ),
       body: InfiniteScrollListView<String>(
+        key: key,
         refreshable: true,
         noDataWidget: ElevatedButton(
           child: Text("TAP"),
@@ -50,12 +51,21 @@ class _MyHomePageState extends State<MyHomePage> {
           return ListTile(
             title: Text(text),
             onTap: () {},
+            trailing: IconButton(
+              icon: Icon(Icons.clear),
+              onPressed: () {
+                key.currentState!.removeItem(text);
+              },
+            ),
           );
         },
       ),
-
-      floatingActionButtonLocation: FloatingActionButtonLocation.miniCenterTop,
-      // This trailing comma makes auto-formatting nicer for build methods.
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.add),
+        onPressed: () {
+          key.currentState!.add("${DateTime.now().millisecond}");
+        },
+      ),
     );
   }
 
@@ -64,9 +74,11 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<List<String>?> getPage(int index) async {
-    if (index == 0 && false) {
+    if (index == 0) {
       return ["azul", "fellawn"];
     }
-    return null;
+    print("index = $index");
+    await Future.delayed(Duration(seconds: 2));
+    throw "Error";
   }
 }
