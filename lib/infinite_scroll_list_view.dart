@@ -138,11 +138,14 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
               );
             }
           }
+
+          /**
+           * @Todo find a way to make it refreshable!
+           */
+
           if (widget.refreshable) {
             list = RefreshIndicator(
-              onRefresh: () {
-                return load(reload: true);
-              },
+              onRefresh: () => load(reload: true),
               child: list,
             );
           }

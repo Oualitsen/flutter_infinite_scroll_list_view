@@ -190,11 +190,12 @@ mixin DataListLoaderMixin<T> {
     dataSubject.add(DataWrapper(list, null));
   }
 
-  Future<void> removeItem(T item) async {
+  Future<void> removeItem(T item, [int? index]) async {
     var _list = dataList;
-    int index = _list.indexOf(item);
-    if (index != -1) {
-      await callOnRemove(index, skipDelay: true);
+    int _index = index ?? _list.indexOf(item);
+
+    if (_index != -1) {
+      await callOnRemove(_index, skipDelay: true);
       dataSubject.add(DataWrapper(_list, null));
 
       if (dataLength == 0 && listLength == 1) {
@@ -205,10 +206,14 @@ mixin DataListLoaderMixin<T> {
 
   Future<void> removeWere(bool Function(T) filter) async {
     var _list = dataList;
-    List<T> list = _list.where(filter).toList();
 
-    for (var value in list) {
-      await removeItem(value);
+    while (true) {
+      int index = _list.indexWhere(filter);
+      if (index != -1) {
+        removeItem(_list[index], index);
+      } else {
+        break;
+      }
     }
   }
 
