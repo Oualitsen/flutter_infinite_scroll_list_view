@@ -69,7 +69,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
   void initState() {
     super.initState();
     initMixin();
-    WidgetsBinding.instance!.addPostFrameCallback((timeStamp) {
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
       load();
     });
   }
