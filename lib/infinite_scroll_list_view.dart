@@ -242,13 +242,13 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
               SizedBox(height: 100),
               Icon(
                 Icons.error,
-                color: Theme.of(context).accentColor,
+                color: Theme.of(context).colorScheme.error,
                 size: 64,
               ),
               SizedBox(height: 16),
               Text(
                 "Could not load data",
-                style: TextStyle(color: Theme.of(context).accentColor),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               )
             ]),
       );
