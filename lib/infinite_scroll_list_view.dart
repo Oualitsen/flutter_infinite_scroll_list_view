@@ -90,7 +90,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DataWrapper<T>?>(
-        stream: dataSubject,
+        stream: dataStream.stream,
         builder: (context, snapshot) {
           Widget list = AnimatedList(
               clipBehavior: widget.clipBehavior,
@@ -127,7 +127,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
             } else if (data.list?.isEmpty ?? true) {
               children.add(
                 StreamBuilder<bool>(
-                    stream: loadingStream,
+                    stream: loadingStream.stream,
                     builder: (context, snapshot) {
                       if (snapshot.hasData) {
                         if (snapshot.data!) {
