@@ -9,6 +9,8 @@ class InfiniteScrollListView<T> extends StatefulWidget {
   final Future<List<T>?> Function(int index) pageLoader;
 
   final int Function(T a, T b)? comparator;
+  final T Function(T current, T newValue)? pick;
+
   final ScrollPhysics? physics;
   final Axis scrollDirection;
   final EdgeInsetsGeometry? padding;
@@ -29,30 +31,31 @@ class InfiniteScrollListView<T> extends StatefulWidget {
   final bool refreshable;
   final Clip clipBehavior;
 
-  InfiniteScrollListView({
-    Key? key,
-    required this.elementBuilder,
-    required this.pageLoader,
-    this.comparator,
-    this.physics,
-    this.scrollDirection: Axis.vertical,
-    this.padding,
-    this.controller,
-    this.primary,
-    this.reverse: false,
-    this.shrinkWrap: false,
-    this.noDataWidget,
-    this.loadingWidget,
-    this.endOfResultWidget,
-    this.itemLoadingWidget,
-    this.errorBuilder,
-    this.elementErrorBuilder,
-    this.betweenItemRenderDelay,
-    this.onRemoveAnimation,
-    this.animateRemovingItemsOnReload: false,
-    this.refreshable: true,
-    this.clipBehavior: Clip.hardEdge,
-  }) : super(key: key);
+  InfiniteScrollListView(
+      {Key? key,
+      required this.elementBuilder,
+      required this.pageLoader,
+      this.comparator,
+      this.physics,
+      this.scrollDirection = Axis.vertical,
+      this.padding,
+      this.controller,
+      this.primary,
+      this.reverse = false,
+      this.shrinkWrap = false,
+      this.noDataWidget,
+      this.loadingWidget,
+      this.endOfResultWidget,
+      this.itemLoadingWidget,
+      this.errorBuilder,
+      this.elementErrorBuilder,
+      this.betweenItemRenderDelay,
+      this.onRemoveAnimation,
+      this.animateRemovingItemsOnReload = false,
+      this.refreshable = true,
+      this.clipBehavior = Clip.hardEdge,
+      this.pick})
+      : super(key: key);
 
   @override
   InfiniteScrollListViewState<T> createState() =>
@@ -164,15 +167,16 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
   @override
   void onAdd(int index, T? item) {
     var state = key.currentState;
-    if (state != null) {
-      if (item == null) {
-        state.insertItem(index);
-      } else {
-        int _index = addAt(index, item);
-        state.insertItem(_index);
-      }
-      _listLength++;
+    if (state == null) {
+      return;
     }
+    if (item == null) {
+      state.insertItem(index);
+    } else {
+      addAt(index, item);
+      state.insertItem(index);
+    }
+    _listLength++;
   }
 
   @override
@@ -207,6 +211,9 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
 
   @override
   int Function(T a, T b)? comparator() => widget.comparator;
+
+  @override
+  T Function(T currentValue, T newValue)? get pick => widget.pick;
 
   Widget get noDataWidget =>
       widget.noDataWidget ??

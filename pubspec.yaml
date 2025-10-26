@@ -1,6 +1,6 @@
 name: infinite_scroll_list_view
 description: Provides an infinite lasy loaded list view with animations.
-version: 1.0.0
+version: 1.1.0
 homepage: "https://rapidoc.app"
 repository: "https://github.com/Oualitsen/flutter_infinite_scroll_list_view"
 

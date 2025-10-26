@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:rxdart/rxdart.dart';
+import 'dart:math';
 
 class DataWrapper<T> {
   final List<T>? list;
@@ -45,7 +46,7 @@ mixin DataListLoaderMixin<T> {
 
   Future<void> load({
     bool reload = false,
-    bool ignoreIfLoading: false,
+    bool ignoreIfLoading = false,
   }) async {
     var _loading = loadingStream.value;
 
@@ -121,7 +122,7 @@ mixin DataListLoaderMixin<T> {
     }
   }
 
-  Future<void> _clear({bool forceSkipDelay: false}) async {
+  Future<void> _clear({bool forceSkipDelay = false}) async {
     var length = listLength;
     for (int i = length - 1; i >= 0; i--) {
       await callOnRemove(i,
@@ -138,9 +139,10 @@ mixin DataListLoaderMixin<T> {
 
   Future<void> _addItem(T item, {required bool skipDelay}) async {
     int Function(T a, T b)? _comparator = comparator();
+    T Function(T current, T newVal) _pick = pick ?? (a, b) => b;
     var _list = dataList;
     if (_comparator == null || _list.isEmpty) {
-      await callOnAdd(_list.length - 1, item, skipDelay: skipDelay);
+      await callOnAdd(max(0, _list.length - 1), item, skipDelay: skipDelay);
       return;
     }
     /**
@@ -152,36 +154,27 @@ mixin DataListLoaderMixin<T> {
       var currentItem = getItem(index);
       int compare = _comparator(item, currentItem);
       if (compare == 0) {
-        await callOnUpdate(index, item, skipDelay: skipDelay);
+        await callOnUpdate(index, _pick(currentItem, item),
+            skipDelay: skipDelay);
         return;
       } else if (compare > 0) {
         await callOnAdd(index, item, skipDelay: skipDelay);
         return;
       }
     }
-
     await callOnAdd(_list.length - 1, item, skipDelay: skipDelay);
   }
 
-  int addAt(int index, T item) {
+  void addAt(int index, T item) {
+    print("addAt index = ${index} item = ${item} !!");
     var _list = dataList;
-    int result = index;
-    if (index == _list.length - 1) {
-      _list.add(item);
-      result = _list.length - 1;
-    } else {
-      List<T> newList = [];
 
-      for (int i = 0; i < _list.length; i++) {
-        if (i == index) {
-          newList.add(item);
-        }
-        newList.add(_list[i]);
-      }
-      _list = newList;
-    }
+    _list = [
+      ..._list.sublist(0, index),
+      item,
+      ..._list.sublist(index),
+    ];
     dataSubject.add(DataWrapper(_list, null));
-    return result;
   }
 
   updateItem(int index, T newValue) {
@@ -235,6 +228,8 @@ mixin DataListLoaderMixin<T> {
   List<T> get dataList => dataSubject.valueOrNull?.list ?? [];
 
   int Function(T a, T b)? comparator();
+
+  T Function(T currentValue, T newValue)? pick;
 
   void onRemove(int index);
   void onAdd(int index, T? item);
