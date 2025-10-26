@@ -1,6 +1,6 @@
 ## 0.0.1
 
-* TODO: Describe initial release.
+* First realease
 ## 0.0.7
 
 Adds elementErrorBuilder:

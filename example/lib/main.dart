@@ -37,7 +37,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void addData() {
     var id = random.nextInt(100);
     data.add(
-        Message("Message # ${id}", id, DateTime.now().millisecondsSinceEpoch));
+        Message("Message # $id", id, DateTime.now().millisecondsSinceEpoch));
 
     key.currentState!.add(data.last);
   }

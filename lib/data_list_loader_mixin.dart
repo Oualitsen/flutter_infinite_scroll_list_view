@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:rxdart/rxdart.dart';
 import 'dart:math';
+
+import 'package:infinite_scroll_list_view/reactive_value.dart';
 
 class DataWrapper<T> {
   final List<T>? list;
@@ -12,11 +13,10 @@ class DataWrapper<T> {
 }
 
 mixin DataListLoaderMixin<T> {
-  final BehaviorSubject<bool> _endOfResultStream =
-      BehaviorSubject.seeded(false);
-  final BehaviorSubject<bool> loadingStream = BehaviorSubject.seeded(false);
-  final BehaviorSubject<Object?> errorStream = BehaviorSubject();
-  final BehaviorSubject<DataWrapper<T>?> dataSubject = BehaviorSubject();
+  final _endOfResultStream = ReactiveValue<bool>(false);
+  final loadingStream = ReactiveValue<bool>(false);
+  final errorStream = ReactiveValue<Object?>(null);
+  final dataStream = ReactiveValue<DataWrapper<T>?>(null);
 
   int _pageIndex = 0;
 
@@ -26,7 +26,7 @@ mixin DataListLoaderMixin<T> {
   late StreamSubscription _sub;
 
   void initMixin() {
-    _sub = loadingStream
+    _sub = loadingStream.stream
         .where((event) => !event)
         .where((e) => queue.isNotEmpty)
         .listen((event) {
@@ -39,7 +39,7 @@ mixin DataListLoaderMixin<T> {
     _sub.cancel();
     _endOfResultStream.close();
     loadingStream.close();
-    dataSubject.close();
+    dataStream.close();
     queue.clear();
     errorStream.close();
   }
@@ -81,7 +81,7 @@ mixin DataListLoaderMixin<T> {
        * Prevent the list from loading more pages!
        */
       _addToEndOfResultStream(true);
-      dataSubject.add(DataWrapper(dataList, error));
+      dataStream.add(DataWrapper(dataList, error));
       return Future.error(error);
     } finally {
       _addToLoadingStream(false);
@@ -105,11 +105,11 @@ mixin DataListLoaderMixin<T> {
         await _addItem(l[i], skipDelay: i == 0);
       }
     } else {
-      DataWrapper<T>? _data = dataSubject.valueOrNull;
+      DataWrapper<T>? _data = dataStream.valueOrNull;
       if (_data == null) {
-        dataSubject.add(DataWrapper([], null));
+        dataStream.add(DataWrapper([], null));
       } else if (_data.error != null) {
-        dataSubject.add(DataWrapper(_data.list ?? [], null));
+        dataStream.add(DataWrapper(_data.list ?? [], null));
       }
     }
 
@@ -134,7 +134,7 @@ mixin DataListLoaderMixin<T> {
   void removeAt(int index) {
     var list = dataList;
     list.removeAt(index);
-    dataSubject.add(DataWrapper(list, null));
+    dataStream.add(DataWrapper(list, null));
   }
 
   Future<void> _addItem(T item, {required bool skipDelay}) async {
@@ -166,21 +166,19 @@ mixin DataListLoaderMixin<T> {
   }
 
   void addAt(int index, T item) {
-    print("addAt index = ${index} item = ${item} !!");
     var _list = dataList;
-
     _list = [
       ..._list.sublist(0, index),
       item,
       ..._list.sublist(index),
     ];
-    dataSubject.add(DataWrapper(_list, null));
+    dataStream.add(DataWrapper(_list, null));
   }
 
   updateItem(int index, T newValue) {
     var list = dataList;
     list[index] = newValue;
-    dataSubject.add(DataWrapper(list, null));
+    dataStream.add(DataWrapper(list, null));
   }
 
   Future<void> removeItem(T item, [int? index]) async {
@@ -189,7 +187,7 @@ mixin DataListLoaderMixin<T> {
 
     if (_index != -1) {
       await callOnRemove(_index, skipDelay: true);
-      dataSubject.add(DataWrapper(_list, null));
+      dataStream.add(DataWrapper(_list, null));
 
       if (dataLength == 0 && listLength == 1) {
         await callOnRemove(0, skipDelay: true);
@@ -225,7 +223,7 @@ mixin DataListLoaderMixin<T> {
 
   Future<List<T>?> Function(int index) getLoader();
 
-  List<T> get dataList => dataSubject.valueOrNull?.list ?? [];
+  List<T> get dataList => dataStream.valueOrNull?.list ?? [];
 
   int Function(T a, T b)? comparator();
 
@@ -288,7 +286,7 @@ mixin DataListLoaderMixin<T> {
   Duration? get betweenItemRenderDelay => Duration(milliseconds: 50);
 
   Widget get lastElement => StreamBuilder<bool>(
-        stream: _endOfResultStream,
+        stream: _endOfResultStream.stream,
         initialData: _endOfResultStream.valueOrNull,
         builder: (context, AsyncSnapshot<bool> snapshot) {
           bool? endOfResult = snapshot.data;
@@ -299,7 +297,7 @@ mixin DataListLoaderMixin<T> {
                * check if data.contains error!
                */
 
-              var data = dataSubject.valueOrNull;
+              var data = dataStream.valueOrNull;
 
               if (data?.error != null) {
                 return getElementError(context, data!.error);
