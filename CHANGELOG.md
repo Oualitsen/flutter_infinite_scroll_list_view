@@ -1,5 +1,8 @@
-# 1.3.0 (unreleased)
-Adds `SliverInfiniteScrollListView`, state-control API, lifecycle callbacks, and a batch insert fast-path.
+# 1.2.0
+Adds optional `pageSize` and `isEndOfPage` parameters to `InfiniteScrollListView`.
+- When `pageSize` is set, the list stops paginating as soon as a page returns fewer items than `pageSize`, avoiding an extra empty-page round-trip.
+- When `isEndOfPage` is set, it overrides all default end-of-page logic with a custom predicate.
+- Fallback order: `isEndOfPage` → `pageSize` → `page.isEmpty` → `null response`.
 
 **New widget**
 - `SliverInfiniteScrollListView<T>` backed by `SliverAnimatedList`, composable inside any `CustomScrollView` alongside other slivers (app bars, headers, grids, etc.). Supports all existing APIs: `clear()`, `replace()`, `isLoading`, `isEndOfResults`, `removeAnimationBuilder`, `separatorBuilder`, `initialItems`, `onReload`, `onLoadMore`, `pageSize`, `isEndOfPage`.
@@ -23,12 +26,6 @@ Adds `SliverInfiniteScrollListView`, state-control API, lifecycle callbacks, and
 **Bug fixes**
 - Disposed-widget guard: all async paths check `_disposed` before mutating state, preventing "setState called after dispose" errors.
 - Load queue now keeps only the latest pending call; stale queued loads are dropped with `queue.clear()`.
-
-# 1.2.0
-Adds optional `pageSize` and `isEndOfPage` parameters to `InfiniteScrollListView`.
-- When `pageSize` is set, the list stops paginating as soon as a page returns fewer items than `pageSize`, avoiding an extra empty-page round-trip.
-- When `isEndOfPage` is set, it overrides all default end-of-page logic with a custom predicate.
-- Fallback order: `isEndOfPage` → `pageSize` → `page.isEmpty` → `null response`.
 
 ## 0.0.1
 
