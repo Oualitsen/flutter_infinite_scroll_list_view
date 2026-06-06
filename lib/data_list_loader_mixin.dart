@@ -23,6 +23,7 @@ mixin DataListLoaderMixin<T> {
   Stream<DataWrapper<T>?> get dataStream => _dataStream.stream;
 
   int _pageIndex = 0;
+  bool _disposed = false;
 
   Future<void> reload() => load(reload: true);
 
@@ -40,6 +41,7 @@ mixin DataListLoaderMixin<T> {
   }
 
   void disposeMixin() {
+    _disposed = true;
     _sub.cancel();
     _endOfResultStream.close();
     _loadingStream.close();
@@ -55,6 +57,8 @@ mixin DataListLoaderMixin<T> {
 
     if (_loading) {
       if (!ignoreIfLoading) {
+        // Keep only the latest pending load — earlier queued calls are stale.
+        queue.clear();
         queue.add(() => load(reload: reload));
       }
       return;
@@ -68,6 +72,7 @@ mixin DataListLoaderMixin<T> {
     try {
       _addToEndOfResultStream(false);
       List<T>? response = await getLoader().call(_pageIndex);
+      if (_disposed) return;
       final bool Function(List<T> page) _isEndOfPage = isEndOfPage
           ?? (pageSize != null
               ? (page) => page.length < pageSize!
@@ -80,6 +85,7 @@ mixin DataListLoaderMixin<T> {
       }
       await _addItems(response ?? [], reload);
     } catch (error) {
+      if (_disposed) return;
       // await _clear(forceSkipDelay: true);
       _addToEndOfResultStream(true);
       _dataStream.add(DataWrapper(dataList, error));
@@ -92,14 +98,17 @@ mixin DataListLoaderMixin<T> {
   Future<void> _addItems(List<T> l, bool reload) async {
     if (reload) {
       await _clear();
+      if (_disposed) return;
     }
 
     if (listLength == dataLength + 1) {
       await callOnRemove(dataLength, skipDelay: true);
+      if (_disposed) return;
     }
     if (l.isNotEmpty) {
       for (int i = 0; i < l.length; i++) {
         await _addItem(l[i], skipDelay: i == 0);
+        if (_disposed) return;
       }
     } else {
       DataWrapper<T>? _data = _dataStream.valueOrNull;
@@ -122,6 +131,7 @@ mixin DataListLoaderMixin<T> {
   Future<void> _clear({bool forceSkipDelay = false}) async {
     var length = listLength;
     for (int i = length - 1; i >= 0; i--) {
+      if (_disposed) return;
       await callOnRemove(i,
           skipDelay: forceSkipDelay || !animateRemovingItemsOnReload);
     }
