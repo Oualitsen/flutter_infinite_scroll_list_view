@@ -487,6 +487,24 @@ void main() {
     });
   });
 
+  group('simpleBuilder', () {
+    testWidgets('renders items using a two-argument builder', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: InfiniteScrollListView<String>(
+            pageSize: 5,
+            pageLoader: (page) async => ['a', 'b'],
+            elementBuilder: simpleBuilder((context, item) => Text(item)),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('a'), findsOneWidget);
+      expect(find.text('b'), findsOneWidget);
+    });
+  });
+
   group('dispose safety', () {
     testWidgets('disposing mid-fetch does not call AnimatedList callbacks',
         (tester) async {

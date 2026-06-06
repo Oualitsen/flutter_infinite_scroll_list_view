@@ -3,6 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:infinite_scroll_list_view/data_list_loader_mixin.dart';
 
+Widget Function(BuildContext, T, int, Animation<double>) simpleBuilder<T>(
+  Widget Function(BuildContext context, T item) fn,
+) =>
+    (ctx, item, _, __) => fn(ctx, item);
+
 class InfiniteScrollListView<T> extends StatefulWidget {
   final Widget Function(BuildContext context, T element, int index,
       Animation<double> animation) elementBuilder;
