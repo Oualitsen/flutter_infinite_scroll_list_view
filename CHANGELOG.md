@@ -1,3 +1,9 @@
+# 1.2.0
+Adds optional `pageSize` and `isEndOfPage` parameters to `InfiniteScrollListView`.
+- When `pageSize` is set, the list stops paginating as soon as a page returns fewer items than `pageSize`, avoiding an extra empty-page round-trip.
+- When `isEndOfPage` is set, it overrides all default end-of-page logic with a custom predicate.
+- Fallback order: `isEndOfPage` → `pageSize` → `page.isEmpty` → `null response`.
+
 ## 0.0.1
 
 * First realease

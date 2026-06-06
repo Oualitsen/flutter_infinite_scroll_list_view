@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'dart:math';
 
 import 'package:infinite_scroll_list_view/reactive_value.dart';
 
@@ -14,9 +13,14 @@ class DataWrapper<T> {
 
 mixin DataListLoaderMixin<T> {
   final _endOfResultStream = ReactiveValue<bool>(false);
-  final loadingStream = ReactiveValue<bool>(false);
-  final errorStream = ReactiveValue<Object?>(null);
-  final dataStream = ReactiveValue<DataWrapper<T>?>(null);
+  final _loadingStream = ReactiveValue<bool>(false);
+  final _dataStream = ReactiveValue<DataWrapper<T>?>(null);
+
+  /// Emits `true` while a page is being fetched, `false` otherwise.
+  Stream<bool> get loadingStream => _loadingStream.stream;
+
+  /// Emits the current list state whenever items are added, removed, or updated.
+  Stream<DataWrapper<T>?> get dataStream => _dataStream.stream;
 
   int _pageIndex = 0;
 
@@ -26,7 +30,7 @@ mixin DataListLoaderMixin<T> {
   late StreamSubscription _sub;
 
   void initMixin() {
-    _sub = loadingStream.stream
+    _sub = _loadingStream.stream
         .where((event) => !event)
         .where((e) => queue.isNotEmpty)
         .listen((event) {
@@ -38,17 +42,16 @@ mixin DataListLoaderMixin<T> {
   void disposeMixin() {
     _sub.cancel();
     _endOfResultStream.close();
-    loadingStream.close();
-    dataStream.close();
+    _loadingStream.close();
+    _dataStream.close();
     queue.clear();
-    errorStream.close();
   }
 
   Future<void> load({
     bool reload = false,
     bool ignoreIfLoading = false,
   }) async {
-    var _loading = loadingStream.value;
+    var _loading = _loadingStream.value;
 
     if (_loading) {
       if (!ignoreIfLoading) {
@@ -65,7 +68,11 @@ mixin DataListLoaderMixin<T> {
     try {
       _addToEndOfResultStream(false);
       List<T>? response = await getLoader().call(_pageIndex);
-      bool _endOfResult = response?.isEmpty ?? true;
+      final bool Function(List<T> page) _isEndOfPage = isEndOfPage
+          ?? (pageSize != null
+              ? (page) => page.length < pageSize!
+              : (page) => page.isEmpty);
+      bool _endOfResult = response == null || _isEndOfPage(response);
 
       _addToEndOfResultStream(_endOfResult);
       if (!_endOfResult) {
@@ -73,15 +80,9 @@ mixin DataListLoaderMixin<T> {
       }
       await _addItems(response ?? [], reload);
     } catch (error) {
-      /**
-       * Clear first
-       */
       // await _clear(forceSkipDelay: true);
-      /**
-       * Prevent the list from loading more pages!
-       */
       _addToEndOfResultStream(true);
-      dataStream.add(DataWrapper(dataList, error));
+      _dataStream.add(DataWrapper(dataList, error));
       return Future.error(error);
     } finally {
       _addToLoadingStream(false);
@@ -89,10 +90,6 @@ mixin DataListLoaderMixin<T> {
   }
 
   Future<void> _addItems(List<T> l, bool reload) async {
-    /**
-     * add the items to the correct index
-     */
-
     if (reload) {
       await _clear();
     }
@@ -105,11 +102,11 @@ mixin DataListLoaderMixin<T> {
         await _addItem(l[i], skipDelay: i == 0);
       }
     } else {
-      DataWrapper<T>? _data = dataStream.valueOrNull;
+      DataWrapper<T>? _data = _dataStream.valueOrNull;
       if (_data == null) {
-        dataStream.add(DataWrapper([], null));
+        _dataStream.add(DataWrapper([], null));
       } else if (_data.error != null) {
-        dataStream.add(DataWrapper(_data.list ?? [], null));
+        _dataStream.add(DataWrapper(_data.list ?? [], null));
       }
     }
 
@@ -132,9 +129,9 @@ mixin DataListLoaderMixin<T> {
 
   @protected
   void removeAt(int index) {
-    var list = dataList;
+    final list = [...dataList];
     list.removeAt(index);
-    dataStream.add(DataWrapper(list, null));
+    _dataStream.add(DataWrapper(list, null));
   }
 
   Future<void> _addItem(T item, {required bool skipDelay}) async {
@@ -142,12 +139,9 @@ mixin DataListLoaderMixin<T> {
     T Function(T current, T newVal) _pick = pick ?? (a, b) => b;
     var _list = dataList;
     if (_comparator == null || _list.isEmpty) {
-      await callOnAdd(max(0, _list.length - 1), item, skipDelay: skipDelay);
+      await callOnAdd(_list.length, item, skipDelay: skipDelay);
       return;
     }
-    /**
-       * List is not empty and the comparator is not null
-     */
 
     int length = _list.length;
     for (int index = 0; index < length; index++) {
@@ -162,7 +156,7 @@ mixin DataListLoaderMixin<T> {
         return;
       }
     }
-    await callOnAdd(_list.length - 1, item, skipDelay: skipDelay);
+    await callOnAdd(_list.length, item, skipDelay: skipDelay);
   }
 
   void addAt(int index, T item) {
@@ -172,13 +166,13 @@ mixin DataListLoaderMixin<T> {
       item,
       ..._list.sublist(index),
     ];
-    dataStream.add(DataWrapper(_list, null));
+    _dataStream.add(DataWrapper(_list, null));
   }
 
   updateItem(int index, T newValue) {
     var list = dataList;
     list[index] = newValue;
-    dataStream.add(DataWrapper(list, null));
+    _dataStream.add(DataWrapper(list, null));
   }
 
   Future<void> removeItem(T item, [int? index]) async {
@@ -187,7 +181,6 @@ mixin DataListLoaderMixin<T> {
 
     if (_index != -1) {
       await callOnRemove(_index, skipDelay: true);
-      dataStream.add(DataWrapper(_list, null));
 
       if (dataLength == 0 && listLength == 1) {
         await callOnRemove(0, skipDelay: true);
@@ -195,13 +188,12 @@ mixin DataListLoaderMixin<T> {
     }
   }
 
-  Future<void> removeWere(bool Function(T) filter) async {
-    var _list = dataList;
-
+  Future<void> removeWhere(bool Function(T) filter) async {
     while (true) {
-      int index = _list.indexWhere(filter);
+      final list = dataList;
+      final index = list.indexWhere(filter);
       if (index != -1) {
-        removeItem(_list[index], index);
+        await removeItem(list[index], index);
       } else {
         break;
       }
@@ -223,8 +215,13 @@ mixin DataListLoaderMixin<T> {
 
   Future<List<T>?> Function(int index) getLoader();
 
-  List<T> get dataList => dataStream.valueOrNull?.list ?? [];
+  List<T> get dataList => _dataStream.valueOrNull?.list ?? [];
 
+  /// Comparator used for sorting and deduplication.
+  ///
+  /// Return a positive value if [a] should appear **before** [b] (descending
+  /// order), zero if they are considered equal (triggers an update instead of
+  /// an insert), and a negative value if [a] should appear after [b].
   int Function(T a, T b)? comparator();
 
   T Function(T currentValue, T newValue)? pick;
@@ -234,10 +231,6 @@ mixin DataListLoaderMixin<T> {
   void onUpdate(int index, T item);
 
   Future<void> callOnAdd(int index, T item, {required bool skipDelay}) async {
-    /**
-     * Wait till the data is initialized first!.
-     */
-
     Duration? delay = betweenItemRenderDelay;
     if (delay != null && !skipDelay && isListReady) {
       await Future.delayed(delay, () => onAdd(index, item));
@@ -248,10 +241,6 @@ mixin DataListLoaderMixin<T> {
 
   Future<void> callOnUpdate(int index, T item,
       {required bool skipDelay}) async {
-    /**
-     * Wait till the data is initialized first!.
-     */
-
     Duration? delay = betweenItemRenderDelay;
     if (delay != null && !skipDelay && isListReady) {
       await Future.delayed(delay, () => onUpdate(index, item));
@@ -270,20 +259,16 @@ mixin DataListLoaderMixin<T> {
   }
 
   int getIndexOf(T item) {
-    int Function(T a, T b)? _comparator = comparator();
-    if (_comparator == null) {
-      return -1;
-    }
+    final cmp = comparator() ?? (T a, T b) => a == b ? 0 : -1;
     for (var i = 0; i < dataLength; i++) {
-      var b = getItem(i);
-      if (_comparator(item, b) == 0) {
+      if (cmp(item, getItem(i)) == 0) {
         return i;
       }
     }
     return -1;
   }
 
-  Duration? get betweenItemRenderDelay => Duration(milliseconds: 50);
+  Duration? get betweenItemRenderDelay => const Duration(milliseconds: 50);
 
   Widget get lastElement => StreamBuilder<bool>(
         stream: _endOfResultStream.stream,
@@ -293,11 +278,7 @@ mixin DataListLoaderMixin<T> {
 
           if (endOfResult != null) {
             if (endOfResult) {
-              /**
-               * check if data.contains error!
-               */
-
-              var data = dataStream.valueOrNull;
+              var data = _dataStream.valueOrNull;
 
               if (data?.error != null) {
                 return getElementError(context, data!.error);
@@ -309,21 +290,21 @@ mixin DataListLoaderMixin<T> {
               return getItemLoadingWidget();
             }
           }
-          return SizedBox.shrink();
+          return const SizedBox.shrink();
         },
       );
 
   Widget getItemLoadingWidget() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: [CircularProgressIndicator()],
+      children: const [CircularProgressIndicator()],
     );
   }
 
   Widget getEndOfResultWidget() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: [
+      children: const [
         Icon(
           Icons.fiber_manual_record,
           color: Colors.grey,
@@ -337,7 +318,7 @@ mixin DataListLoaderMixin<T> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
-          icon: Icon(Icons.refresh, color: Colors.red),
+          icon: const Icon(Icons.refresh, color: Colors.red),
           onPressed: load,
         )
       ],
@@ -352,8 +333,8 @@ mixin DataListLoaderMixin<T> {
   }
 
   void _addToLoadingStream(bool value) {
-    if (!loadingStream.isClosed && loadingStream.valueOrNull != value) {
-      loadingStream.add(value);
+    if (!_loadingStream.isClosed && _loadingStream.valueOrNull != value) {
+      _loadingStream.add(value);
     }
   }
 
@@ -362,4 +343,8 @@ mixin DataListLoaderMixin<T> {
   int get listLength;
 
   bool get animateRemovingItemsOnReload => false;
+
+  int? get pageSize => null;
+
+  bool Function(List<T> page)? get isEndOfPage => null;
 }

@@ -1,7 +1,7 @@
 import 'dart:async';
 
 class ReactiveValue<T> {
-  late final _innterCtrl;
+  late final StreamController<T> _innterCtrl;
   late T _value;
   bool _hasValue = false;
 
