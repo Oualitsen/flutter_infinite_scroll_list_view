@@ -347,6 +347,97 @@ void main() {
     });
   });
 
+  group('batch insert fast-path', () {
+    testWidgets('loads items without betweenItemRenderDelay correctly',
+        (tester) async {
+      final key = GlobalKey<InfiniteScrollListViewState<String>>();
+      // No betweenItemRenderDelay → fast-path. Should load all items correctly.
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: InfiniteScrollListView<String>(
+            key: key,
+            pageSize: 5,
+            pageLoader: (page) async => ['a', 'b', 'c'],
+            elementBuilder: (context, item, index, animation) => Text(item),
+            betweenItemRenderDelay: null,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.dataList, ['a', 'b', 'c']);
+    });
+  });
+
+  group('SliverInfiniteScrollListView', () {
+    testWidgets('loads and displays items inside CustomScrollView',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverInfiniteScrollListView<String>(
+                pageSize: 5,
+                pageLoader: (page) async => ['x', 'y'],
+                elementBuilder: (context, item, index, animation) => Text(item),
+              ),
+            ],
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('x'), findsOneWidget);
+      expect(find.text('y'), findsOneWidget);
+    });
+
+    testWidgets('shows noDataWidget when list is empty', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverInfiniteScrollListView<String>(
+                pageSize: 5,
+                pageLoader: (page) async => [],
+                elementBuilder: (context, item, index, animation) => Text(item),
+                noDataWidget: const Text('sliver-empty'),
+              ),
+            ],
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('sliver-empty'), findsOneWidget);
+    });
+
+    testWidgets('exposes isLoading and clear() via GlobalKey', (tester) async {
+      final key = GlobalKey<SliverInfiniteScrollListViewState<String>>();
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverInfiniteScrollListView<String>(
+                key: key,
+                pageSize: 5,
+                pageLoader: (page) async => ['a', 'b'],
+                elementBuilder: (context, item, index, animation) => Text(item),
+              ),
+            ],
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.dataLength, 2);
+
+      await key.currentState!.clear();
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.dataLength, 0);
+    });
+  });
+
   group('dispose safety', () {
     testWidgets('disposing mid-fetch does not call AnimatedList callbacks',
         (tester) async {

@@ -52,7 +52,7 @@ mixin DataListLoaderMixin<T> {
       await _addItem(items[i], skipDelay: true);
     }
     _addToEndOfResultStream(true);
-    _addLastItem();
+    addLastItem();
   }
 
   final List<Function()> queue = [];
@@ -134,9 +134,16 @@ mixin DataListLoaderMixin<T> {
       if (_disposed) return;
     }
     if (l.isNotEmpty) {
-      for (int i = 0; i < l.length; i++) {
-        await _addItem(l[i], skipDelay: i == 0);
-        if (_disposed) return;
+      if (betweenItemRenderDelay == null) {
+        for (final item in l) {
+          if (_disposed) return;
+          _addItemSync(item);
+        }
+      } else {
+        for (int i = 0; i < l.length; i++) {
+          await _addItem(l[i], skipDelay: i == 0);
+          if (_disposed) return;
+        }
       }
     } else {
       DataWrapper<T>? _data = _dataStream.valueOrNull;
@@ -147,10 +154,11 @@ mixin DataListLoaderMixin<T> {
       }
     }
 
-    _addLastItem();
+    addLastItem();
   }
 
-  void _addLastItem() {
+  @protected
+  void addLastItem() {
     if (dataLength == listLength && dataLength > 0) {
       onAdd(dataLength, null);
     }
@@ -195,6 +203,29 @@ mixin DataListLoaderMixin<T> {
       }
     }
     await callOnAdd(_list.length, item, skipDelay: skipDelay);
+  }
+
+  // Synchronous version of _addItem used by the batch fast-path.
+  void _addItemSync(T item) {
+    int Function(T a, T b)? _comparator = comparator();
+    T Function(T current, T newVal) _pick = pick ?? (a, b) => b;
+    var _list = dataList;
+    if (_comparator == null || _list.isEmpty) {
+      onAdd(_list.length, item);
+      return;
+    }
+    for (int index = 0; index < _list.length; index++) {
+      final currentItem = getItem(index);
+      final compare = _comparator(item, currentItem);
+      if (compare == 0) {
+        onUpdate(index, _pick(currentItem, item));
+        return;
+      } else if (compare > 0) {
+        onAdd(index, item);
+        return;
+      }
+    }
+    onAdd(_list.length, item);
   }
 
   void addAt(int index, T item) {
@@ -244,7 +275,7 @@ mixin DataListLoaderMixin<T> {
 
   Future<void> add(T item) async {
     await _addItem(item, skipDelay: true);
-    _addLastItem();
+    addLastItem();
   }
 
   T getItem(int index) => dataList[index];
