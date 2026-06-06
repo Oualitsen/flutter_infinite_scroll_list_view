@@ -22,10 +22,38 @@ mixin DataListLoaderMixin<T> {
   /// Emits the current list state whenever items are added, removed, or updated.
   Stream<DataWrapper<T>?> get dataStream => _dataStream.stream;
 
+  bool get isLoading => _loadingStream.valueOrNull ?? false;
+  bool get isEndOfResults => _endOfResultStream.valueOrNull ?? false;
+
   int _pageIndex = 0;
   bool _disposed = false;
 
   Future<void> reload() => load(reload: true);
+
+  /// Empties the list and resets pagination without triggering a new fetch.
+  Future<void> clear() async {
+    _pageIndex = 0;
+    await _clear(forceSkipDelay: true);
+    _addToEndOfResultStream(false);
+    if (_dataStream.valueOrNull?.list?.isNotEmpty ?? false) {
+      _dataStream.add(DataWrapper([], null));
+    }
+  }
+
+  /// Atomically replaces the entire list with [items] without a reload animation.
+  /// Marks end-of-results so the sentinel does not auto-trigger pagination.
+  /// Call [load] or [reload] afterwards if you want to resume fetching.
+  Future<void> replace(List<T> items) async {
+    await _clear(forceSkipDelay: true);
+    if (_disposed) return;
+    _pageIndex = 0;
+    for (int i = 0; i < items.length; i++) {
+      if (_disposed) return;
+      await _addItem(items[i], skipDelay: true);
+    }
+    _addToEndOfResultStream(true);
+    _addLastItem();
+  }
 
   final List<Function()> queue = [];
   late StreamSubscription _sub;
