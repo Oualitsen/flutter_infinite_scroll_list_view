@@ -8,6 +8,8 @@ class InfiniteScrollListView<T> extends StatefulWidget {
       Animation<double> animation) elementBuilder;
   final Future<List<T>?> Function(int index) pageLoader;
 
+  /// See [DataListLoaderMixin.comparator] for the sort-order convention
+  /// (positive return value = [a] before [b], i.e. descending order).
   final int Function(T a, T b)? comparator;
   final T Function(T current, T newValue)? pick;
 
@@ -25,6 +27,8 @@ class InfiniteScrollListView<T> extends StatefulWidget {
   final Duration? betweenItemRenderDelay;
   final Widget? onRemoveAnimation;
   final bool animateRemovingItemsOnReload;
+  final int? pageSize;
+  final bool Function(List<T> page)? isEndOfPage;
   final Widget Function(BuildContext context, dynamic error)? errorBuilder;
   final Widget Function(BuildContext context, dynamic error)?
       elementErrorBuilder;
@@ -52,6 +56,8 @@ class InfiniteScrollListView<T> extends StatefulWidget {
       this.betweenItemRenderDelay,
       this.onRemoveAnimation,
       this.animateRemovingItemsOnReload = false,
+      this.pageSize,
+      this.isEndOfPage,
       this.refreshable = true,
       this.clipBehavior = Clip.hardEdge,
       this.pick})
@@ -79,18 +85,14 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
 
   @override
   void dispose() {
-    super.dispose();
-    var state = key.currentState;
-    if (state != null) {
-      state.dispose();
-    }
     disposeMixin();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DataWrapper<T>?>(
-        stream: dataStream.stream,
+        stream: dataStream,
         builder: (context, snapshot) {
           Widget list = AnimatedList(
               clipBehavior: widget.clipBehavior,
@@ -127,7 +129,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
             } else if (data.list?.isEmpty ?? true) {
               children.add(
                 StreamBuilder<bool>(
-                    stream: loadingStream.stream,
+                    stream: loadingStream,
                     builder: (context, snapshot) {
                       if (snapshot.hasData) {
                         if (snapshot.data!) {
@@ -136,15 +138,11 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
                           return noDataWidget;
                         }
                       }
-                      return SizedBox.shrink();
+                      return const SizedBox.shrink();
                     }),
               );
             }
           }
-
-          /**
-           * @Todo find a way to make it refreshable!
-           */
 
           if (widget.refreshable) {
             list = RefreshIndicator(
@@ -185,7 +183,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
     if (state != null) {
       state.removeItem(
         index,
-        (context, animation) => widget.onRemoveAnimation ?? SizedBox.shrink(),
+        (context, animation) => widget.onRemoveAnimation ?? const SizedBox.shrink(),
       );
 
       if (index < dataLength) {
@@ -203,7 +201,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
 
       state.removeItem(
         index,
-        (context, animation) => widget.onRemoveAnimation ?? SizedBox.shrink(),
+        (context, animation) => widget.onRemoveAnimation ?? const SizedBox.shrink(),
       );
       state.insertItem(index);
     }
@@ -217,7 +215,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
 
   Widget get noDataWidget =>
       widget.noDataWidget ??
-      Center(
+      const Center(
         child: Text(
           "No data",
           style: TextStyle(color: Colors.red),
@@ -225,7 +223,7 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
       );
 
   Widget get loadingWidget =>
-      widget.loadingWidget ?? Center(child: CircularProgressIndicator());
+      widget.loadingWidget ?? const Center(child: CircularProgressIndicator());
 
   @override
   Widget getEndOfResultWidget() {
@@ -246,13 +244,13 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              SizedBox(height: 100),
+              const SizedBox(height: 100),
               Icon(
                 Icons.error,
                 color: Theme.of(context).colorScheme.error,
                 size: 64,
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 "Could not load data",
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
@@ -281,4 +279,10 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
 
   @override
   bool get animateRemovingItemsOnReload => widget.animateRemovingItemsOnReload;
+
+  @override
+  int? get pageSize => widget.pageSize;
+
+  @override
+  bool Function(List<T> page)? get isEndOfPage => widget.isEndOfPage;
 }
