@@ -12,6 +12,9 @@ Widget buildList({
   List<String>? initialItems,
   void Function()? onReload,
   void Function(int page)? onLoadMore,
+  Widget Function(BuildContext, int)? separatorBuilder,
+  Widget Function(BuildContext, String, Animation<double>)? removeAnimationBuilder,
+  Widget? noDataWidget,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -22,6 +25,9 @@ Widget buildList({
         initialItems: initialItems,
         onReload: onReload,
         onLoadMore: onLoadMore,
+        separatorBuilder: separatorBuilder,
+        removeAnimationBuilder: removeAnimationBuilder,
+        noDataWidget: noDataWidget,
         pageLoader: pageLoader,
         elementBuilder: (context, item, index, animation) => Text(item),
       ),
@@ -272,6 +278,72 @@ void main() {
 
       final list = tester.widget<AnimatedList>(find.byType(AnimatedList));
       expect(list.scrollDirection, Axis.horizontal);
+    });
+  });
+
+  group('separatorBuilder', () {
+    testWidgets('renders separators between items but not after the last',
+        (tester) async {
+      await tester.pumpWidget(buildList(
+        pageSize: 5,
+        pageLoader: (page) async => ['a', 'b', 'c'],
+        separatorBuilder: (context, index) => const Text('---'),
+      ));
+      await tester.pumpAndSettle();
+
+      // 3 items → 2 separators
+      expect(find.text('---'), findsNWidgets(2));
+    });
+  });
+
+  group('removeAnimationBuilder', () {
+    testWidgets('receives the removed item during exit animation', (tester) async {
+      final key = GlobalKey<InfiniteScrollListViewState<String>>();
+      String? capturedItem;
+
+      await tester.pumpWidget(buildList(
+        stateKey: key,
+        pageSize: 5,
+        pageLoader: (page) async => ['a', 'b', 'c'],
+        removeAnimationBuilder: (context, item, animation) {
+          capturedItem = item;
+          return const SizedBox.shrink();
+        },
+      ));
+      await tester.pumpAndSettle();
+
+      await key.currentState!.removeItem('b');
+      await tester.pumpAndSettle();
+
+      expect(capturedItem, 'b');
+    });
+  });
+
+  group('noDataWidget layout', () {
+    testWidgets('shows noDataWidget when list is empty and not loading',
+        (tester) async {
+      await tester.pumpWidget(buildList(
+        pageSize: 5,
+        pageLoader: (page) async => [],
+        noDataWidget: const Text('empty!'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('empty!'), findsOneWidget);
+      // AnimatedList is still in the tree (Offstage keeps it alive but hidden)
+      expect(find.byType(AnimatedList, skipOffstage: false), findsOneWidget);
+    });
+
+    testWidgets('shows list when data is present', (tester) async {
+      await tester.pumpWidget(buildList(
+        pageSize: 5,
+        pageLoader: (page) async => ['a'],
+        noDataWidget: const Text('empty!'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('empty!'), findsNothing);
+      expect(find.text('a'), findsOneWidget);
     });
   });
 
