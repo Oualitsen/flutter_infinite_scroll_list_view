@@ -438,6 +438,55 @@ void main() {
     });
   });
 
+  group('once constructor', () {
+    testWidgets('calls oncePageLoader exactly once and displays all items',
+        (tester) async {
+      int callCount = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: InfiniteScrollListView<String>.once(
+            oncePageLoader: () async {
+              callCount++;
+              return ['a', 'b', 'c'];
+            },
+            elementBuilder: (context, item, index, animation) => Text(item),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 1);
+      expect(find.text('a'), findsOneWidget);
+      expect(find.text('b'), findsOneWidget);
+      expect(find.text('c'), findsOneWidget);
+    });
+
+    testWidgets('SliverInfiniteScrollListView.once calls loader exactly once',
+        (tester) async {
+      int callCount = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverInfiniteScrollListView<String>.once(
+                oncePageLoader: () async {
+                  callCount++;
+                  return ['x', 'y'];
+                },
+                elementBuilder: (context, item, index, animation) => Text(item),
+              ),
+            ],
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 1);
+      expect(find.text('x'), findsOneWidget);
+      expect(find.text('y'), findsOneWidget);
+    });
+  });
+
   group('dispose safety', () {
     testWidgets('disposing mid-fetch does not call AnimatedList callbacks',
         (tester) async {
