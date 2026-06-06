@@ -29,6 +29,9 @@ class InfiniteScrollListView<T> extends StatefulWidget {
   final bool animateRemovingItemsOnReload;
   final int? pageSize;
   final bool Function(List<T> page)? isEndOfPage;
+  final List<T>? initialItems;
+  final void Function()? onReload;
+  final void Function(int page)? onLoadMore;
   final Widget Function(BuildContext context, dynamic error)? errorBuilder;
   final Widget Function(BuildContext context, dynamic error)?
       elementErrorBuilder;
@@ -58,10 +61,74 @@ class InfiniteScrollListView<T> extends StatefulWidget {
       this.animateRemovingItemsOnReload = false,
       this.pageSize,
       this.isEndOfPage,
+      this.initialItems,
+      this.onReload,
+      this.onLoadMore,
       this.refreshable = true,
       this.clipBehavior = Clip.hardEdge,
       this.pick})
       : super(key: key);
+
+  InfiniteScrollListView.horizontal({
+    Key? key,
+    required Widget Function(BuildContext context, T element, int index,
+            Animation<double> animation)
+        elementBuilder,
+    required Future<List<T>?> Function(int index) pageLoader,
+    int Function(T a, T b)? comparator,
+    T Function(T current, T newValue)? pick,
+    ScrollPhysics? physics,
+    EdgeInsetsGeometry? padding,
+    ScrollController? controller,
+    bool? primary,
+    bool reverse = false,
+    bool shrinkWrap = false,
+    Widget? noDataWidget,
+    Widget? loadingWidget,
+    Widget? itemLoadingWidget,
+    Widget? endOfResultWidget,
+    Duration? betweenItemRenderDelay,
+    Widget? onRemoveAnimation,
+    bool animateRemovingItemsOnReload = false,
+    int? pageSize,
+    bool Function(List<T> page)? isEndOfPage,
+    List<T>? initialItems,
+    void Function()? onReload,
+    void Function(int page)? onLoadMore,
+    bool refreshable = true,
+    Clip clipBehavior = Clip.hardEdge,
+    Widget Function(BuildContext context, dynamic error)? errorBuilder,
+    Widget Function(BuildContext context, dynamic error)? elementErrorBuilder,
+  }) : this(
+          key: key,
+          elementBuilder: elementBuilder,
+          pageLoader: pageLoader,
+          comparator: comparator,
+          pick: pick,
+          physics: physics,
+          scrollDirection: Axis.horizontal,
+          padding: padding,
+          controller: controller,
+          primary: primary,
+          reverse: reverse,
+          shrinkWrap: shrinkWrap,
+          noDataWidget: noDataWidget,
+          loadingWidget: loadingWidget,
+          itemLoadingWidget: itemLoadingWidget,
+          endOfResultWidget: endOfResultWidget,
+          betweenItemRenderDelay: betweenItemRenderDelay,
+          onRemoveAnimation: onRemoveAnimation,
+          animateRemovingItemsOnReload: animateRemovingItemsOnReload,
+          pageSize: pageSize,
+          isEndOfPage: isEndOfPage,
+          initialItems: initialItems,
+          onReload: onReload,
+          onLoadMore: onLoadMore,
+          refreshable: refreshable,
+          clipBehavior: clipBehavior,
+          errorBuilder: errorBuilder,
+          elementErrorBuilder: elementErrorBuilder,
+        );
 
   @override
   InfiniteScrollListViewState<T> createState() =>
@@ -73,13 +140,19 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
   final GlobalKey<AnimatedListState> key = GlobalKey<AnimatedListState>();
 
   int _listLength = 0;
+  bool _initialLoadDone = false;
 
   @override
   void initState() {
     super.initState();
     initMixin();
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-      load();
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
+      final initial = widget.initialItems;
+      if (initial != null && initial.isNotEmpty) {
+        await replace(initial);
+      } else {
+        await load();
+      }
     });
   }
 
@@ -159,7 +232,16 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
 
   @override
   Future<List<T>?> Function(int index) getLoader() {
-    return (index) => widget.pageLoader(index);
+    return (index) {
+      if (!_initialLoadDone) {
+        _initialLoadDone = true;
+      } else if (index == 0) {
+        widget.onReload?.call();
+      } else {
+        widget.onLoadMore?.call(index);
+      }
+      return widget.pageLoader(index);
+    };
   }
 
   @override

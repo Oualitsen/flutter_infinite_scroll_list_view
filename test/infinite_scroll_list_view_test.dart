@@ -9,6 +9,9 @@ Widget buildList({
   GlobalKey<InfiniteScrollListViewState<String>>? stateKey,
   int? pageSize,
   bool Function(List<String> page)? isEndOfPage,
+  List<String>? initialItems,
+  void Function()? onReload,
+  void Function(int page)? onLoadMore,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -16,6 +19,9 @@ Widget buildList({
         key: stateKey,
         pageSize: pageSize,
         isEndOfPage: isEndOfPage,
+        initialItems: initialItems,
+        onReload: onReload,
+        onLoadMore: onLoadMore,
         pageLoader: pageLoader,
         elementBuilder: (context, item, index, animation) => Text(item),
       ),
@@ -179,6 +185,93 @@ void main() {
       expect(key.currentState!.dataLength, 2);
       expect(key.currentState!.dataList, ['x', 'y']);
       expect(callCount, 1); // still no extra fetch
+    });
+  });
+
+  group('initialItems', () {
+    testWidgets('pre-populates list without a network fetch', (tester) async {
+      int callCount = 0;
+      final key = GlobalKey<InfiniteScrollListViewState<String>>();
+      await tester.pumpWidget(buildList(
+        stateKey: key,
+        initialItems: ['x', 'y', 'z'],
+        pageLoader: (page) async {
+          callCount++;
+          return ['a'];
+        },
+      ));
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.dataList, ['x', 'y', 'z']);
+      expect(callCount, 0); // no fetch triggered
+    });
+
+    testWidgets('falls back to pageLoader when initialItems is null',
+        (tester) async {
+      int callCount = 0;
+      await tester.pumpWidget(buildList(
+        pageSize: 5,
+        pageLoader: (page) async {
+          callCount++;
+          return ['a'];
+        },
+      ));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 1);
+    });
+  });
+
+  group('onReload / onLoadMore callbacks', () {
+    testWidgets('onReload fires on reload, not on initial load', (tester) async {
+      int reloadCount = 0;
+      final key = GlobalKey<InfiniteScrollListViewState<String>>();
+      await tester.pumpWidget(buildList(
+        stateKey: key,
+        pageSize: 5,
+        pageLoader: (page) async => ['a'],
+        onReload: () => reloadCount++,
+      ));
+      await tester.pumpAndSettle();
+
+      expect(reloadCount, 0); // initial load must not fire onReload
+
+      await key.currentState!.reload();
+      await tester.pumpAndSettle();
+
+      expect(reloadCount, 1);
+    });
+
+    testWidgets('onLoadMore fires for pages after the first', (tester) async {
+      final pages = <int>[];
+      // pageSize=2: page 0 returns 2 items (full → not end), page 1 returns 1
+      // item (fewer than pageSize → end). So onLoadMore fires exactly once for page 1.
+      await tester.pumpWidget(buildList(
+        pageSize: 2,
+        pageLoader: (page) async => page == 0 ? ['a', 'b'] : ['c'],
+        onLoadMore: (page) => pages.add(page),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(pages, [1]); // page 0 = initial load (skipped), page 1 = loadMore
+    });
+  });
+
+  group('horizontal constructor', () {
+    testWidgets('sets scrollDirection to horizontal', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: InfiniteScrollListView<String>.horizontal(
+            pageSize: 5,
+            pageLoader: (page) async => ['a', 'b'],
+            elementBuilder: (context, item, index, animation) => Text(item),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final list = tester.widget<AnimatedList>(find.byType(AnimatedList));
+      expect(list.scrollDirection, Axis.horizontal);
     });
   });
 
