@@ -14,6 +14,7 @@ Adds `SliverInfiniteScrollListView`, state-control API, lifecycle callbacks, and
 - `onReload` fires when `reload()` is explicitly called; does not fire on the initial load.
 - `onLoadMore(int page)` fires for every page after the first.
 - `InfiniteScrollListView.horizontal(...)` named constructor shorthand that sets `scrollDirection: Axis.horizontal`.
+- `InfiniteScrollListView.once(oncePageLoader: () => ...)` and `SliverInfiniteScrollListView.once(...)` named constructors that accept a no-argument loader and fetch exactly one page, with no need for manual index checks.
 
 **Performance**
 - Batch insert fast-path: when `betweenItemRenderDelay` is null, all items from a page are inserted synchronously in a single event-loop turn instead of one microtask per item.
