@@ -285,4 +285,17 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
 
   @override
   bool Function(List<T> page)? get isEndOfPage => widget.isEndOfPage;
+
+  // Convenience re-exports for callers using a GlobalKey on this state.
+  @override
+  bool get isLoading => super.isLoading;
+
+  @override
+  bool get isEndOfResults => super.isEndOfResults;
+
+  @override
+  Future<void> clear() => super.clear();
+
+  @override
+  Future<void> replace(List<T> items) => super.replace(items);
 }

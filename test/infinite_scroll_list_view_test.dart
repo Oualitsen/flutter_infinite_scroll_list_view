@@ -4,14 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infinite_scroll_list_view/infinite_scroll_list_view.dart';
 
-Widget _buildList({
+Widget buildList({
   required Future<List<String>?> Function(int page) pageLoader,
+  GlobalKey<InfiniteScrollListViewState<String>>? stateKey,
   int? pageSize,
   bool Function(List<String> page)? isEndOfPage,
 }) {
   return MaterialApp(
     home: Scaffold(
       body: InfiniteScrollListView<String>(
+        key: stateKey,
         pageSize: pageSize,
         isEndOfPage: isEndOfPage,
         pageLoader: pageLoader,
@@ -25,14 +27,13 @@ void main() {
   group('end-of-page detection', () {
     testWidgets('defaults to isEmpty — stops after empty page', (tester) async {
       int callCount = 0;
-      await tester.pumpWidget(_buildList(
+      await tester.pumpWidget(buildList(
         pageLoader: (page) async {
           callCount++;
           return page == 0 ? ['a', 'b'] : [];
         },
       ));
 
-      // page 0 loads on init, page 1 loads when sentinel becomes visible
       await tester.pumpAndSettle();
       expect(callCount, 2); // page 0 + one empty page to detect end
     });
@@ -40,11 +41,10 @@ void main() {
     testWidgets('pageSize — stops when page has fewer items than pageSize',
         (tester) async {
       int callCount = 0;
-      await tester.pumpWidget(_buildList(
+      await tester.pumpWidget(buildList(
         pageSize: 5,
         pageLoader: (page) async {
           callCount++;
-          // returns 3 items, which is less than pageSize=5 → end of results
           return ['a', 'b', 'c'];
         },
       ));
@@ -55,11 +55,10 @@ void main() {
 
     testWidgets('pageSize — continues when page is full', (tester) async {
       int callCount = 0;
-      await tester.pumpWidget(_buildList(
+      await tester.pumpWidget(buildList(
         pageSize: 3,
         pageLoader: (page) async {
           callCount++;
-          // page 0 is full (3 == pageSize) → loads next; page 1 is partial → stops
           return page == 0 ? ['a', 'b', 'c'] : ['d'];
         },
       ));
@@ -71,8 +70,8 @@ void main() {
     testWidgets('isEndOfPage — custom predicate overrides pageSize and default',
         (tester) async {
       int callCount = 0;
-      await tester.pumpWidget(_buildList(
-        pageSize: 10, // would require 10 items, but isEndOfPage overrides
+      await tester.pumpWidget(buildList(
+        pageSize: 10,
         isEndOfPage: (page) => page.any((item) => item == 'LAST'),
         pageLoader: (page) async {
           callCount++;
@@ -87,8 +86,8 @@ void main() {
     testWidgets('null pageLoader response always means end of results',
         (tester) async {
       int callCount = 0;
-      await tester.pumpWidget(_buildList(
-        pageSize: 10, // irrelevant — null response short-circuits everything
+      await tester.pumpWidget(buildList(
+        pageSize: 10,
         pageLoader: (page) async {
           callCount++;
           return null;
@@ -100,26 +99,103 @@ void main() {
     });
   });
 
+  group('isLoading / isEndOfResults', () {
+    testWidgets('isLoading is true during fetch, false after', (tester) async {
+      final key = GlobalKey<InfiniteScrollListViewState<String>>();
+      final completer = Completer<List<String>>();
+
+      await tester.pumpWidget(buildList(
+        stateKey: key,
+        pageLoader: (page) => completer.future,
+      ));
+      await tester.pump();
+
+      expect(key.currentState!.isLoading, isTrue);
+
+      completer.complete([]);
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.isLoading, isFalse);
+    });
+
+    testWidgets('isEndOfResults is true after last page', (tester) async {
+      final key = GlobalKey<InfiniteScrollListViewState<String>>();
+      await tester.pumpWidget(buildList(
+        stateKey: key,
+        pageSize: 5,
+        pageLoader: (page) async => ['a', 'b'],
+      ));
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.isEndOfResults, isTrue);
+    });
+  });
+
+  group('clear()', () {
+    testWidgets('empties the list and resets page index without fetching',
+        (tester) async {
+      final key = GlobalKey<InfiniteScrollListViewState<String>>();
+      int callCount = 0;
+      await tester.pumpWidget(buildList(
+        stateKey: key,
+        pageSize: 5,
+        pageLoader: (page) async {
+          callCount++;
+          return ['a', 'b', 'c'];
+        },
+      ));
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.dataLength, 3);
+      expect(callCount, 1);
+
+      await key.currentState!.clear();
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.dataLength, 0);
+      expect(callCount, 1); // no extra fetch
+      expect(key.currentState!.isEndOfResults, isFalse);
+    });
+  });
+
+  group('replace()', () {
+    testWidgets('swaps list contents without triggering a fetch', (tester) async {
+      final key = GlobalKey<InfiniteScrollListViewState<String>>();
+      int callCount = 0;
+      await tester.pumpWidget(buildList(
+        stateKey: key,
+        pageSize: 5,
+        pageLoader: (page) async {
+          callCount++;
+          return ['a', 'b', 'c'];
+        },
+      ));
+      await tester.pumpAndSettle();
+      expect(callCount, 1);
+
+      await key.currentState!.replace(['x', 'y']);
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.dataLength, 2);
+      expect(key.currentState!.dataList, ['x', 'y']);
+      expect(callCount, 1); // still no extra fetch
+    });
+  });
+
   group('dispose safety', () {
     testWidgets('disposing mid-fetch does not call AnimatedList callbacks',
         (tester) async {
       final completer = Completer<List<String>>();
 
-      await tester.pumpWidget(_buildList(
+      await tester.pumpWidget(buildList(
         pageLoader: (page) => completer.future,
       ));
-
-      // Widget is mounted, fetch is in-flight (completer not yet resolved)
       await tester.pump();
 
-      // Dispose the widget while the fetch is still pending
       await tester.pumpWidget(const SizedBox.shrink());
 
-      // Now resolve the fetch — should not throw or call into a dead AnimatedList
       completer.complete(['a', 'b', 'c']);
       await tester.pumpAndSettle();
-
-      // If we reach here without an exception the fix is working
     });
   });
 }
