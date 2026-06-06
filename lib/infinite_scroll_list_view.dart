@@ -25,8 +25,9 @@ class InfiniteScrollListView<T> extends StatefulWidget {
   final Widget? itemLoadingWidget;
   final Widget? endOfResultWidget;
   final Duration? betweenItemRenderDelay;
-  final Widget? onRemoveAnimation;
+  final Widget Function(BuildContext context, T item, Animation<double> animation)? removeAnimationBuilder;
   final bool animateRemovingItemsOnReload;
+  final Widget Function(BuildContext context, int index)? separatorBuilder;
   final int? pageSize;
   final bool Function(List<T> page)? isEndOfPage;
   final List<T>? initialItems;
@@ -57,7 +58,8 @@ class InfiniteScrollListView<T> extends StatefulWidget {
       this.errorBuilder,
       this.elementErrorBuilder,
       this.betweenItemRenderDelay,
-      this.onRemoveAnimation,
+      this.removeAnimationBuilder,
+      this.separatorBuilder,
       this.animateRemovingItemsOnReload = false,
       this.pageSize,
       this.isEndOfPage,
@@ -88,7 +90,8 @@ class InfiniteScrollListView<T> extends StatefulWidget {
     Widget? itemLoadingWidget,
     Widget? endOfResultWidget,
     Duration? betweenItemRenderDelay,
-    Widget? onRemoveAnimation,
+    Widget Function(BuildContext context, T item, Animation<double> animation)? removeAnimationBuilder,
+    Widget Function(BuildContext context, int index)? separatorBuilder,
     bool animateRemovingItemsOnReload = false,
     int? pageSize,
     bool Function(List<T> page)? isEndOfPage,
@@ -117,7 +120,8 @@ class InfiniteScrollListView<T> extends StatefulWidget {
           itemLoadingWidget: itemLoadingWidget,
           endOfResultWidget: endOfResultWidget,
           betweenItemRenderDelay: betweenItemRenderDelay,
-          onRemoveAnimation: onRemoveAnimation,
+          removeAnimationBuilder: removeAnimationBuilder,
+          separatorBuilder: separatorBuilder,
           animateRemovingItemsOnReload: animateRemovingItemsOnReload,
           pageSize: pageSize,
           isEndOfPage: isEndOfPage,
@@ -183,39 +187,21 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
                 if (index == dataLength) {
                   return lastElement;
                 }
-                return widget.elementBuilder(
+                final item = widget.elementBuilder(
                   context,
                   getItem(index),
                   index,
                   animation,
                 );
+                final sep = widget.separatorBuilder;
+                if (sep != null && index < dataLength - 1) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [item, sep(context, index)],
+                  );
+                }
+                return item;
               });
-
-          var children = <Widget>[];
-
-          var data = snapshot.data;
-          if (data == null) {
-            children.add(loadingWidget);
-          } else {
-            if (data.error != null && dataLength == 0) {
-              children.add(getError(context, data.error));
-            } else if (data.list?.isEmpty ?? true) {
-              children.add(
-                StreamBuilder<bool>(
-                    stream: loadingStream,
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData) {
-                        if (snapshot.data!) {
-                          return loadingWidget;
-                        } else {
-                          return noDataWidget;
-                        }
-                      }
-                      return const SizedBox.shrink();
-                    }),
-              );
-            }
-          }
 
           if (widget.refreshable) {
             list = RefreshIndicator(
@@ -223,10 +209,30 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
               child: list,
             );
           }
-          children.add(list);
-          return Stack(
-            children: children.reversed.toList(),
-          );
+
+          final data = snapshot.data;
+          Widget? overlay;
+          if (data == null) {
+            overlay = loadingWidget;
+          } else if (data.error != null && dataLength == 0) {
+            overlay = getError(context, data.error);
+          } else if (data.list?.isEmpty ?? true) {
+            overlay = StreamBuilder<bool>(
+              stream: loadingStream,
+              builder: (context, snapshot) {
+                if (snapshot.data == true) return loadingWidget;
+                return noDataWidget;
+              },
+            );
+          }
+
+          if (overlay != null) {
+            return Stack(children: [
+              Offstage(offstage: true, child: list),
+              Positioned.fill(child: overlay),
+            ]);
+          }
+          return list;
         });
   }
 
@@ -263,9 +269,17 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
   void onRemove(int index) {
     var state = key.currentState;
     if (state != null) {
+      // Capture the item before removeAt erases it from the data model.
+      final removedItem = index < dataLength ? getItem(index) : null;
       state.removeItem(
         index,
-        (context, animation) => widget.onRemoveAnimation ?? const SizedBox.shrink(),
+        (context, animation) {
+          final builder = widget.removeAnimationBuilder;
+          if (builder != null && removedItem != null) {
+            return builder(context, removedItem, animation);
+          }
+          return const SizedBox.shrink();
+        },
       );
 
       if (index < dataLength) {
@@ -279,11 +293,16 @@ class InfiniteScrollListViewState<T> extends State<InfiniteScrollListView<T>>
   void onUpdate(int index, T item) {
     var state = key.currentState;
     if (state != null) {
+      final oldItem = getItem(index);
       updateItem(index, item);
 
       state.removeItem(
         index,
-        (context, animation) => widget.onRemoveAnimation ?? const SizedBox.shrink(),
+        (context, animation) {
+          final builder = widget.removeAnimationBuilder;
+          if (builder != null) return builder(context, oldItem, animation);
+          return const SizedBox.shrink();
+        },
       );
       state.insertItem(index);
     }
