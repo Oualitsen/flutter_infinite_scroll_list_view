@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infinite_scroll_list_view/infinite_scroll_list_view.dart';
@@ -95,6 +97,29 @@ void main() {
 
       await tester.pumpAndSettle();
       expect(callCount, 1);
+    });
+  });
+
+  group('dispose safety', () {
+    testWidgets('disposing mid-fetch does not call AnimatedList callbacks',
+        (tester) async {
+      final completer = Completer<List<String>>();
+
+      await tester.pumpWidget(_buildList(
+        pageLoader: (page) => completer.future,
+      ));
+
+      // Widget is mounted, fetch is in-flight (completer not yet resolved)
+      await tester.pump();
+
+      // Dispose the widget while the fetch is still pending
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      // Now resolve the fetch — should not throw or call into a dead AnimatedList
+      completer.complete(['a', 'b', 'c']);
+      await tester.pumpAndSettle();
+
+      // If we reach here without an exception the fix is working
     });
   });
 }
